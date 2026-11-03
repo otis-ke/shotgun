@@ -227,9 +227,14 @@ class MockDeriv:
                 "symbol": sym, "granularity": gran}}))
 
 
-if __name__ == "__main__":  # manual dev server: python -m tests.mock_deriv
-    async def main():
-        m = MockDeriv(candle_seconds=2)
-        print("mock Deriv on", await m.start(8765))
+if __name__ == "__main__":  # manual dev server: python -m tests.mock_deriv [--port 8765] [--candle-seconds 2]
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--candle-seconds", type=float, default=2)
+
+    async def main(a):
+        m = MockDeriv(candle_seconds=a.candle_seconds)
+        print("mock Deriv on", await m.start(a.port), flush=True)
         await asyncio.Future()
-    asyncio.run(main())
+    asyncio.run(main(ap.parse_args()))

@@ -40,6 +40,25 @@ jobs:
       - name: Dependency vulnerability audit
         run: npm audit --omit=dev --audit-level=high
 
+  browser-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -r requirements-dev.txt
+      - name: Python reference outputs
+        run: python -m tests.parity.dump_python frontend/tests/py_reference.json
+      - name: JS engine matches Python + end-to-end against mock Deriv
+        env:
+          PYTHON: python
+        run: node --test frontend/tests/parity.test.mjs frontend/tests/engine.test.mjs
+
   secrets:
     runs-on: ubuntu-latest
     steps:

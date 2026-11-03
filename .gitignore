@@ -12,3 +12,5 @@ frontend/dist/
 *.key
 *.db
 *.sqlite*
+frontend/tests/py_reference.json
+.vscode/

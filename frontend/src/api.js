@@ -12,7 +12,19 @@ export class ApiError extends Error {
   constructor(status, message) { super(message); this.status = status }
 }
 
+// Static build (GitHub Pages): no server - the engine runs in this browser tab and talks to Deriv directly.
+export const STATIC = import.meta.env.VITE_STATIC === '1'
+const engine = STATIC ? import('./engine/local-api.js') : null
+
+async function localCall(path, opts) {
+  try { return await (await engine).localApi(path, opts) } catch (e) {
+    if (e.status === 401 && path !== '/auth/deriv') { session.clear(); window.dispatchEvent(new Event('dat-logout')) }
+    throw new ApiError(e.status || 500, e.message)
+  }
+}
+
 export async function api(path, { method = 'GET', body } = {}) {
+  if (STATIC) return localCall(path, { method, body })
   const headers = { 'Content-Type': 'application/json' }
   const t = session.get()
   if (t) headers.Authorization = `Bearer ${t}`
@@ -28,6 +40,11 @@ export async function api(path, { method = 'GET', body } = {}) {
 }
 
 export function connectEvents(onMessage, onState) {
+  if (STATIC) {
+    let stop = null, cancelled = false
+    engine.then((m) => { if (!cancelled) stop = m.localEvents(onMessage, onState) })
+    return () => { cancelled = true; stop?.() }
+  }
   let ws, closed = false, retry = 1000
   const open = () => {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'

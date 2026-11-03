@@ -37,30 +37,60 @@ function useSite() {
   return site
 }
 
+// Returning visitors skip the login screen: Deriv's OAuth page sends anyone already signed in to
+// Deriv straight back here with fresh tokens. An explicit sign-out turns this off until the next login.
+const flag = {
+  get: (k) => { try { return localStorage.getItem(k) === '1' } catch { return false } },
+  set: (k, on) => { try { on ? localStorage.setItem(k, '1') : localStorage.removeItem(k) } catch { /* ignore */ } },
+}
+const RETURNING = 'ot:returning', SIGNED_OUT = 'ot:signed_out'
+const BASE = import.meta.env.BASE_URL
+
+export function PolicyLinks() {
+  return <span className="mini"><a href={`${BASE}privacy.html`}>Privacy Policy</a> · <a href={`${BASE}cookies.html`}>Cookie Policy</a></span>
+}
+
+function CookieNotice() {
+  const [seen, setSeen] = useState(() => flag.get('ot:cookie_notice'))
+  if (seen) return null
+  return (
+    <div className="cookie-notice" role="dialog" aria-label="Cookie notice">
+      <span>We use only strictly necessary browser storage to keep you signed in and save your settings - no ads, no tracking. See our <a href={`${BASE}cookies.html`}>Cookie Policy</a>.</span>
+      <button className="btn sm primary" onClick={() => { flag.set('ot:cookie_notice', true); setSeen(true) }}>OK</button>
+    </div>
+  )
+}
+
 function Login({ site, onDone }) {
   const [err, setErr] = useState(null)
   const [busy, setBusy] = useState(false)
   useEffect(() => {
     const accounts = readOAuthRedirect()
-    if (!accounts.length) return
+    if (!accounts.length) {
+      if (site?.oauth_url && flag.get(RETURNING) && !flag.get(SIGNED_OUT)) { setBusy(true); location.replace(site.oauth_url) }
+      return
+    }
     history.replaceState(null, '', location.pathname)   // remove tokens from the address bar immediately
     setBusy(true)
     api('/auth/deriv', { method: 'POST', body: { accounts } })
-      .then((r) => { session.set(r.token); onDone() })
-      .catch((e) => { setErr(e.message); setBusy(false) })
-  }, [onDone])
+      .then((r) => { session.set(r.token); flag.set(RETURNING, true); flag.set(SIGNED_OUT, false); onDone() })
+      .catch((e) => { flag.set(RETURNING, false); setErr(e.message); setBusy(false) })
+  }, [onDone, site])
   return (
     <div className="login">
       <div className="card">
         <div className="brand" style={{ padding: 0, fontSize: 20 }}>{site?.brand || '…'}<small>{site?.tagline}</small></div>
-        {busy ? <div className="alert info">Signing you in…</div> : <>
+        {busy ? <div className="alert info">Signing you in with Deriv…</div> : <>
           <p className="muted" style={{ margin: 0 }}>Sign in with your Deriv account. You'll enter your password on Deriv's own website, then come straight back here — we never see your Deriv password.</p>
-          <a className="btn primary" style={{ textAlign: 'center', textDecoration: 'none', padding: '10px' }} href={site?.oauth_url}>Log in with Deriv</a>
+          <a className="btn primary" style={{ textAlign: 'center', textDecoration: 'none', padding: '10px' }} href={site?.oauth_url}
+            onClick={() => flag.set(SIGNED_OUT, false)}>Log in with Deriv</a>
           <a className="btn" style={{ textAlign: 'center', textDecoration: 'none' }} href={site?.signup_url} target="_blank" rel="noreferrer">Create a free Deriv account</a>
         </>}
         {err && <div className="alert err">{err}</div>}
         <div className="mini">Trading involves risk; automated strategies can lose money. Start on a demo account. {site?.brand} is an independent application and is not operated by Deriv.</div>
+        <PolicyLinks />
       </div>
+      <CookieNotice />
     </div>
   )
 }
@@ -120,6 +150,7 @@ export default function App() {
   const estop = status?.emergency_stop
   const signOut = async (everywhere = false) => {
     try { await api(`/auth/logout${everywhere ? '?everywhere=true' : ''}`, { method: 'POST' }) } catch { /* ignore */ }
+    flag.set(SIGNED_OUT, true)
     session.clear(); setAuthed(false)
   }
 
@@ -136,6 +167,7 @@ export default function App() {
           <div className="spacer" />
           <div className="mini" style={{ padding: '0 10px 6px' }}>{status?.user?.fullname || status?.user?.email}</div>
           <button className="nav" onClick={() => signOut(false)}>Sign out</button>
+          <div style={{ padding: '6px 10px' }}><PolicyLinks /></div>
         </nav>
         <div className="main">
           <div className="topbar">
@@ -157,6 +189,7 @@ export default function App() {
           <div className="page"><Page /></div>
         </div>
       </div>
+      <CookieNotice />
     </Live.Provider>
   )
 }

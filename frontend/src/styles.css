@@ -102,3 +102,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .tab.active { color: #fff; border-color: var(--accent); }
 .mini { font-size: 12px; color: var(--muted); }
 pre { white-space: pre-wrap; word-break: break-word; font: 12px var(--mono); margin: 0; color: var(--muted); }
+
+.cookie-notice { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 640px; margin: 0 auto; z-index: 50;
+  display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-radius: 10px; font-size: 13px;
+  background: var(--panel-2); border: 1px solid var(--line-2); box-shadow: 0 8px 30px rgba(0,0,0,.45); }
+.cookie-notice span { flex: 1; }
