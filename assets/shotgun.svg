@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" width="960" height="360" role="img" aria-label="Animated dotted shotgun firing">
+  <style>
+    .gun    { animation: recoil 2.4s infinite; transform-origin: 250px 150px; }
+    .pump   { animation: pump 2.4s infinite; }
+    .flash  { animation: flash 2.4s infinite; transform-box: fill-box; transform-origin: left center; }
+    .pellet { animation: pellet 2.4s infinite; }
+    .p2 { animation-delay: .03s; } .p3 { animation-delay: .06s; } .p4 { animation-delay: .02s; } .p5 { animation-delay: .05s; }
+    .shell  { animation: shell 2.4s infinite; transform-box: fill-box; transform-origin: center; }
+    .title  { animation: blink 2.4s infinite; }
+
+    @keyframes recoil { 0%,100% { transform: translateX(0) rotate(0) } 3% { transform: translateX(-22px) rotate(-3deg) } 14% { transform: translateX(0) rotate(0) } }
+    @keyframes pump   { 0%,30% { transform: translateX(0) } 42%,48% { transform: translateX(-60px) } 60%,100% { transform: translateX(0) } }
+    @keyframes flash  { 0% { opacity: 1; transform: scale(1.2) } 7% { opacity: .8; transform: scale(.7) } 10%,100% { opacity: 0; transform: scale(.4) } }
+    @keyframes pellet { 0% { transform: translateX(0); opacity: 1 } 22% { transform: translateX(170px); opacity: 0 } 100% { transform: translateX(170px); opacity: 0 } }
+    @keyframes shell  { 0%,40% { opacity: 0; transform: translate(0,0) rotate(0) } 42% { opacity: 1 } 60% { opacity: 1; transform: translate(-70px,-110px) rotate(-260deg) } 66%,100% { opacity: 0; transform: translate(-90px,-60px) rotate(-360deg) } }
+    @keyframes blink  { 0%,4% { fill: url(#dotsFire) } 10%,100% { fill: url(#dotsText) } }
+  </style>
+
+  <defs>
+    <pattern id="dotsSteel" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="4.5" cy="4.5" r="3" fill="#a7b1c2"/></pattern>
+    <pattern id="dotsDark"  width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="4.5" cy="4.5" r="3" fill="#5c6675"/></pattern>
+    <pattern id="dotsWood"  width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="4.5" cy="4.5" r="3" fill="#c97a3d"/></pattern>
+    <pattern id="dotsFire"  width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="4" cy="4" r="2.8" fill="#ffb02e"/></pattern>
+    <pattern id="dotsText"  width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="3.5" cy="3.5" r="2.4" fill="#e6edf3"/></pattern>
+  </defs>
+
+  <rect width="960" height="360" rx="18" fill="#0d1117"/>
+
+  <!-- muzzle flash -->
+  <polygon class="flash" fill="url(#dotsFire)"
+    points="800,132 830,96 838,122 880,100 858,128 904,132 858,138 880,166 838,144 830,170"/>
+
+  <!-- pellets, fanned out -->
+  <g fill="#ffd27a">
+    <g transform="rotate(-9 800 132)"><circle class="pellet"    cx="805" cy="132" r="5"/></g>
+    <g transform="rotate(-4 800 132)"><circle class="pellet p2" cx="805" cy="132" r="5"/></g>
+    <g>                               <circle class="pellet p3" cx="805" cy="132" r="5"/></g>
+    <g transform="rotate(4 800 132)"> <circle class="pellet p4" cx="805" cy="132" r="5"/></g>
+    <g transform="rotate(9 800 132)"> <circle class="pellet p5" cx="805" cy="132" r="5"/></g>
+  </g>
+
+  <g class="gun">
+    <!-- stock -->
+    <path fill="url(#dotsWood)" d="M50,128 L120,132 L250,124 L250,172 L190,176 L70,222 L46,212 Z"/>
+    <!-- receiver -->
+    <rect fill="url(#dotsSteel)" x="250" y="114" width="120" height="58" rx="6"/>
+    <rect fill="url(#dotsDark)" x="282" y="124" width="54" height="18" rx="3"/>
+    <!-- trigger + guard drawn as dotted strokes -->
+    <path d="M284,172 q22,40 52,0" fill="none" stroke="#a7b1c2" stroke-width="6" stroke-linecap="round" stroke-dasharray="0.1 10"/>
+    <path d="M308,172 l-4,20" stroke="#a7b1c2" stroke-width="6" stroke-linecap="round" stroke-dasharray="0.1 9"/>
+    <!-- barrel + magazine tube -->
+    <rect fill="url(#dotsSteel)" x="370" y="118" width="430" height="20" rx="4"/>
+    <rect fill="url(#dotsDark)"  x="370" y="142" width="360" height="16" rx="4"/>
+    <circle cx="790" cy="112" r="4" fill="#e6edf3"/>
+    <!-- pump / forend -->
+    <rect class="pump" fill="url(#dotsWood)" x="460" y="136" width="170" height="32" rx="10"/>
+    <!-- ejected shell -->
+    <rect class="shell" x="330" y="112" width="26" height="12" rx="3" fill="#e5484d"/>
+  </g>
+
+  <text class="title" x="480" y="320" text-anchor="middle" fill="url(#dotsText)"
+    font-family="Consolas, 'Courier New', monospace" font-weight="900" font-size="96" letter-spacing="14">SHOTGUN</text>
+</svg>

@@ -1,0 +1,22 @@
+services:
+  terminal:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8000:8000"     # bind to localhost; put a TLS reverse proxy in front for remote access
+    volumes:
+      - ./data:/app/data
+
+  # Optional PostgreSQL. Enable with: docker compose --profile postgres up -d
+  # and set DATABASE_URL=postgresql+psycopg://trader:change-me@db:5432/terminal in .env
+  db:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: trader
+      POSTGRES_PASSWORD: change-me
+      POSTGRES_DB: terminal
+    volumes:
+      - ./data/pg:/var/lib/postgresql/data

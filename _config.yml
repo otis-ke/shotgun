@@ -1,0 +1,3 @@
+title: shotgun
+# GitHub Pages only publishes the README page and its art; the trading app needs a real server.
+exclude: [backend, frontend, tests, docs, Dockerfile, docker-compose.yml, requirements.txt, requirements-dev.txt, pytest.ini]
