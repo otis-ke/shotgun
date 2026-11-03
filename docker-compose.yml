@@ -9,14 +9,14 @@ services:
       - ./data:/app/data
 
   # Optional PostgreSQL. Enable with: docker compose --profile postgres up -d
-  # and set DATABASE_URL=postgresql+psycopg://trader:change-me@db:5432/terminal in .env
+  # and set DATABASE_URL=postgresql+psycopg://trader:<POSTGRES_PASSWORD>@db:5432/terminal in .env
   db:
     image: postgres:16-alpine
     profiles: ["postgres"]
     restart: unless-stopped
     environment:
       POSTGRES_USER: trader
-      POSTGRES_PASSWORD: change-me
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}   # from .env; Postgres refuses to start if empty
       POSTGRES_DB: terminal
     volumes:
       - ./data/pg:/var/lib/postgresql/data
