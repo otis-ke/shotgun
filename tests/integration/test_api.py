@@ -50,6 +50,19 @@ def test_site_info_is_public_and_branded(api):
     assert client.get("/api/status").status_code == 401
 
 
+def test_dashboard_files_cannot_escape_dist(tmp_path):
+    from backend.main import dist_file
+    dist = (tmp_path / "dist").resolve()
+    dist.mkdir()
+    (dist / "index.html").write_text("shell")
+    (dist / "logo.svg").write_text("logo")
+    (tmp_path / ".env").write_text("MASTER_KEY=secret")
+    assert dist_file(dist, "logo.svg") == dist / "logo.svg"
+    assert dist_file(dist, "../.env") == dist / "index.html"
+    assert dist_file(dist, str(tmp_path / ".env")) == dist / "index.html"
+    assert dist_file(dist, "bots/settings") == dist / "index.html"
+
+
 def test_bad_token_rejected(api):
     client, _ = api
     r = client.post("/api/auth/deriv", json={"accounts": [{"token": "bad"}]})

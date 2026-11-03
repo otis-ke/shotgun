@@ -47,11 +47,18 @@ def healthz():
 
 
 # serve the built dashboard (frontend/dist) from the same origin in production
-DIST = Path(os.getenv("FRONTEND_DIST", BASE_DIR / "frontend" / "dist"))
+DIST = Path(os.getenv("FRONTEND_DIST", BASE_DIR / "frontend" / "dist")).resolve()
+
+
+def dist_file(dist: Path, path: str) -> Path:
+    """File to serve for `path`; only files inside `dist`, anything else (incl. ../ traversal) gets the SPA shell."""
+    f = (dist / path).resolve()
+    return f if f.is_relative_to(dist) and f.is_file() else dist / "index.html"
+
+
 if DIST.exists():
     app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
 
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str):
-        f = DIST / path
-        return FileResponse(f if f.is_file() else DIST / "index.html")
+        return FileResponse(dist_file(DIST, path))
