@@ -37,7 +37,7 @@ test('pasted Deriv redirect address or API tokens are understood', async () => {
   assert.deepEqual(parseCredentials('https://deriv.example/redirect?acct1=CR1&token1=a1-abcdefgh&cur1=usd&acct2=VRTC2&token2=a1-zyxwvuts&cur2=usd'),
     [{ loginid: 'CR1', token: 'a1-abcdefgh', currency: 'usd' }, { loginid: 'VRTC2', token: 'a1-zyxwvuts', currency: 'usd' }])
   assert.deepEqual(parseCredentials('acct1=CR1&token1=a1-abcdefgh'), [{ loginid: 'CR1', token: 'a1-abcdefgh', currency: null }])
-  assert.deepEqual(parseCredentials(' AbCdEfGh12345 ,\n ZyXwVuTs98765 '), [{ token: 'AbCdEfGh12345' }, { token: 'ZyXwVuTs98765' }])
+  assert.deepEqual(parseCredentials(' example-token-aaaa ,\n example-token-bbbb '), [{ token: 'example-token-aaaa' }, { token: 'example-token-bbbb' }])
   assert.deepEqual(parseCredentials('hi'), [])
 })
 
