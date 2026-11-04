@@ -30,7 +30,8 @@ jobs:
         working-directory: frontend
         env:
           VITE_STATIC: "1"
-          VITE_BASE: /${{ github.event.repository.name }}/
+          # Served at the root of the custom domain (otistrade.online); use /<repo>/ for <user>.github.io/<repo>/
+          VITE_BASE: ${{ vars.SITE_BASE || '/' }}
           # Set your own Deriv app id under Settings -> Secrets and variables -> Actions -> Variables
           VITE_DERIV_APP_ID: ${{ vars.DERIV_APP_ID || '1089' }}
           VITE_BRAND_NAME: ${{ vars.BRAND_NAME || 'Otis Trade' }}

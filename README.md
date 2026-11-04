@@ -26,6 +26,6 @@
 
 ---
 
-<p align="center"><b>Live site:</b> <a href="https://otis-ke.github.io/shotgun/">otis-ke.github.io/shotgun</a></p>
+<p align="center"><b>Live site:</b> <a href="https://otistrade.online/">otistrade.online</a></p>
 
 <sub>Project docs: [docs/PROJECT.md](docs/PROJECT.md)</sub>
