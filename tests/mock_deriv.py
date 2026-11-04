@@ -187,6 +187,12 @@ class MockDeriv:
                          "contract_type": c["contract_type"], "underlying_symbol": c["symbol"]}
                         for c in self.contracts.values()
                         if c.get("owner") == login and self._poc(c["contract_id"])["is_sold"]]}})
+                elif "app_register" in req:
+                    if not authed:
+                        await send({"error": {"code": "AuthorizationRequired", "message": "Please log in."}})
+                        continue
+                    await send({"msg_type": "app_register", "app_register": {
+                        "app_id": 4242, "name": req.get("name"), "redirect_uri": req.get("redirect_uri"), "scopes": req.get("scopes")}})
                 elif "statement" in req:
                     await send({"msg_type": "statement", "statement": {"transactions": []}})
                 elif "sell" in req:

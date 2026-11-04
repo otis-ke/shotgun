@@ -10,6 +10,7 @@ import Signals from './history/Signals'
 import Logs from './history/Logs'
 import Settings from './settings/Settings'
 import Admin from './settings/Admin'
+import { parseCredentials, readOAuthRedirect } from './credentials'
 
 const Live = createContext(null)
 export const useLive = () => useContext(Live)
@@ -21,21 +22,14 @@ const PAGES = [
   ['admin', 'Admin', Admin, true],
 ]
 
-/** Deriv redirects back with ?acct1=..&token1=..&cur1=..&acct2=.. after its own login page. */
-function readOAuthRedirect() {
-  const q = new URLSearchParams(location.search)
-  const accounts = []
-  for (let i = 1; q.get(`token${i}`); i++) {
-    accounts.push({ loginid: q.get(`acct${i}`), token: q.get(`token${i}`), currency: q.get(`cur${i}`) })
-  }
-  return accounts
-}
-
 function useSite() {
   const [site, setSite] = useState(null)
-  useEffect(() => { api('/site').then((s) => { setSite(s); document.title = s.brand }).catch(() => {}) }, [])
-  return site
+  const load = useCallback(() => api('/site').then((s) => { setSite(s); document.title = s.brand }).catch(() => {}), [])
+  useEffect(() => { load() }, [load])
+  return [site, load]
 }
+
+const SITE_URL = () => `${location.origin}${import.meta.env.BASE_URL}`
 
 // Returning visitors skip the login screen: Deriv's OAuth page sends anyone already signed in to
 // Deriv straight back here with fresh tokens. An explicit sign-out turns this off until the next login.
@@ -61,30 +55,49 @@ function CookieNotice() {
   )
 }
 
-function Login({ site, onDone }) {
+function Login({ site, reloadSite, onDone }) {
   const [err, setErr] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [paste, setPaste] = useState('')
+  const oauthReady = site ? (site.oauth_ready ?? true) : false   // the Python server build always has its own app id
+  const signIn = useCallback((accounts, viaOAuth) => {
+    setBusy(true); setErr(null)
+    return api('/auth/deriv', { method: 'POST', body: { accounts } })
+      .then((r) => { session.set(r.token); flag.set(RETURNING, viaOAuth); flag.set(SIGNED_OUT, false); onDone() })
+      .catch((e) => { flag.set(RETURNING, false); setErr(e.message); setBusy(false) })
+  }, [onDone])
   useEffect(() => {
     const accounts = readOAuthRedirect()
-    if (!accounts.length) {
-      if (site?.oauth_url && flag.get(RETURNING) && !flag.get(SIGNED_OUT)) { setBusy(true); location.replace(site.oauth_url) }
-      return
-    }
-    history.replaceState(null, '', location.pathname)   // remove tokens from the address bar immediately
-    setBusy(true)
-    api('/auth/deriv', { method: 'POST', body: { accounts } })
-      .then((r) => { session.set(r.token); flag.set(RETURNING, true); flag.set(SIGNED_OUT, false); onDone() })
-      .catch((e) => { flag.set(RETURNING, false); setErr(e.message); setBusy(false) })
-  }, [onDone, site])
+    if (accounts.length) {
+      history.replaceState(null, '', location.pathname)   // remove tokens from the address bar immediately
+      signIn(accounts, true)
+    } else if (oauthReady && flag.get(RETURNING) && !flag.get(SIGNED_OUT)) { setBusy(true); location.replace(site.oauth_url) }
+  }, [signIn, site])
+  const submitPaste = (e) => {
+    e.preventDefault()
+    const accounts = parseCredentials(paste)
+    if (!accounts.length) return setErr('Paste a Deriv API token, or the full address Deriv sent you to after logging in.')
+    setPaste(''); signIn(accounts, false)
+  }
   return (
     <div className="login">
       <div className="card">
         <div className="brand" style={{ padding: 0, fontSize: 20 }}>{site?.brand || '…'}<small>{site?.tagline}</small></div>
         {busy ? <div className="alert info">Signing you in with Deriv…</div> : <>
-          <p className="muted" style={{ margin: 0 }}>Sign in with your Deriv account. You'll enter your password on Deriv's own website, then come straight back here — we never see your Deriv password.</p>
-          <a className="btn primary" style={{ textAlign: 'center', textDecoration: 'none', padding: '10px' }} href={site?.oauth_url}
-            onClick={() => flag.set(SIGNED_OUT, false)}>Log in with Deriv</a>
+          {oauthReady ? <>
+            <p className="muted" style={{ margin: 0 }}>Sign in with your Deriv account. You'll enter your password on Deriv's own website, then come straight back here — we never see your Deriv password.</p>
+            <a className="btn primary" style={{ textAlign: 'center', textDecoration: 'none', padding: '10px' }} href={site?.oauth_url}
+              onClick={() => flag.set(SIGNED_OUT, false)}>Log in with Deriv</a>
+          </> : <p className="muted" style={{ margin: 0 }}>Sign in with a Deriv API token. Create one at{' '}
+            <a href="https://app.deriv.com/account/api-token" target="_blank" rel="noreferrer">app.deriv.com → API token</a> with the
+            scopes <b>Read</b>, <b>Trade</b> and <b>Trading information</b>. Make one on your demo account and one on your real account, and paste both to use either.</p>}
+          <form onSubmit={submitPaste} style={{ display: 'grid', gap: 8 }}>
+            <textarea rows={2} value={paste} onChange={(e) => setPaste(e.target.value)} autoComplete="off" spellCheck={false}
+              placeholder={oauthReady ? 'Or paste an API token / the address Deriv sent you to' : 'API token(s) - separate several with spaces'} />
+            <button className={`btn ${oauthReady ? '' : 'primary'}`} type="submit">Sign in with token</button>
+          </form>
           <a className="btn" style={{ textAlign: 'center', textDecoration: 'none' }} href={site?.signup_url} target="_blank" rel="noreferrer">Create a free Deriv account</a>
+          <AppSetup site={site} reloadSite={reloadSite} />
         </>}
         {err && <div className="alert err">{err}</div>}
         <div className="mini">Trading involves risk; automated strategies can lose money. Start on a demo account. {site?.brand} is an independent application and is not operated by Deriv.</div>
@@ -92,6 +105,34 @@ function Login({ site, onDone }) {
       </div>
       <CookieNotice />
     </div>
+  )
+}
+
+/** One-time owner setup so "Log in with Deriv" returns to this site instead of Deriv's own page. */
+function AppSetup({ site, reloadSite }) {
+  const [id, setId] = useState('')
+  const [admin, setAdmin] = useState('')
+  const [msg, setMsg] = useState(null)
+  if (!site?.static) return null
+  const run = async (fn) => { setMsg(null); try { const r = await fn(); setMsg({ ok: true, text: `Saved app id ${r.app_id}. "Log in with Deriv" now returns here.` }); reloadSite() } catch (e) { setMsg({ ok: false, text: e.message }) } }
+  return (
+    <details open={!site.oauth_ready}>
+      <summary className="mini">{site.oauth_ready ? `Deriv app id ${site.app_id}` : 'Enable one-click "Log in with Deriv" (site owner, once)'}</summary>
+      <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+        <div className="mini">Register an app at <a href="https://api.deriv.com/dashboard" target="_blank" rel="noreferrer">api.deriv.com</a> with
+          redirect URL <code>{SITE_URL()}</code> and scopes Read, Trade, Trading information, then enter its app id:</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input value={id} onChange={(e) => setId(e.target.value)} placeholder="App id, e.g. 12345" inputMode="numeric" style={{ flex: 1 }} />
+          <button className="btn sm" onClick={() => run(() => api('/site/app-id', { method: 'PUT', body: { app_id: id } }))}>Save</button>
+        </div>
+        <div className="mini">…or register it automatically with an API token that has the <b>Admin</b> scope (used once, not stored):</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input type="password" value={admin} onChange={(e) => setAdmin(e.target.value)} placeholder="Admin API token" autoComplete="off" style={{ flex: 1 }} />
+          <button className="btn sm" onClick={() => run(() => api('/site/register-app', { method: 'POST', body: { token: admin, redirect_uri: SITE_URL() } }).finally(() => setAdmin('')))}>Register</button>
+        </div>
+        {msg && <div className={`alert ${msg.ok ? 'info' : 'err'}`}>{msg.text}</div>}
+      </div>
+    </details>
   )
 }
 
@@ -111,7 +152,7 @@ function AccountSwitcher({ status, refresh }) {
 }
 
 export default function App() {
-  const site = useSite()
+  const [site, reloadSite] = useSite()
   const [authed, setAuthed] = useState(() => !!session.get() && !readOAuthRedirect().length)
   const [page, setPage] = useState(() => location.hash.slice(1) || 'dashboard')
   const [status, setStatus] = useState(null)
@@ -140,7 +181,7 @@ export default function App() {
     return () => { clearInterval(t); stop() }
   }, [authed, refreshStatus])
 
-  if (!authed) return <Login site={site} onDone={onLogin} />
+  if (!authed) return <Login site={site} reloadSite={reloadSite} onDone={onLogin} />
 
   const subscribe = (fn) => { listeners.current.add(fn); return () => listeners.current.delete(fn) }
   const isAdmin = status?.user?.is_admin

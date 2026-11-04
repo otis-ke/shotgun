@@ -25,6 +25,10 @@ export const CONFIG = {
   affiliate: env.VITE_DERIV_AFFILIATE_TOKEN || '',
 }
 const REAL_CONFIRM = 'I ACCEPT REAL MONEY RISK'
+// Deriv's shared test app (1089) only redirects to Deriv's own page, so OAuth needs the owner's app id.
+// It can be set at build time (VITE_DERIV_APP_ID) or here in the browser without a rebuild.
+const APP_ID_KEY = 'ot:app_id', SHARED_APP_ID = '1089'
+export const appId = () => String(getItem(APP_ID_KEY) || CONFIG.appId)
 const SESSION = 'ot:session'
 const now = () => Date.now() / 1000
 
@@ -59,7 +63,7 @@ class Runtime {
     const acct = sess.accounts.find((a) => a.loginid === sess.active_loginid) || sess.accounts[0]
     this.sess = sess
     this.store = new Store(sess.uid)
-    this.client = new DerivClient(CONFIG.wsUrl, CONFIG.appId, acct.token)
+    this.client = new DerivClient(CONFIG.wsUrl, appId(), acct.token)
     this.feed = new MarketFeed(this.client)
     this.risk = new RiskManager(this.store)
     this.memory = new PerformanceMemory(this.store)
@@ -152,7 +156,7 @@ async function rt() {
 const publicUser = (s) => ({ id: s.uid, email: s.email, fullname: s.fullname, is_admin: false, active_loginid: s.active_loginid,
   accounts: s.accounts.map(({ loginid, currency, is_virtual }) => ({ loginid, currency, is_virtual })) })
 
-const oauthUrl = () => `${CONFIG.oauthUrl}?${new URLSearchParams({ app_id: CONFIG.appId, l: 'EN' })}`
+const oauthUrl = () => `${CONFIG.oauthUrl}?${new URLSearchParams({ app_id: appId(), l: 'EN' })}`
 const signupUrl = () => (CONFIG.affiliate ? `${CONFIG.signupUrl}?t=${encodeURIComponent(CONFIG.affiliate)}` : CONFIG.signupUrl)
 
 // ---------------- routes ----------------
@@ -161,12 +165,36 @@ const on = (method, pattern, fn) => routes.push([method, new RegExp(`^${pattern.
 const CLOSED = ['won', 'lost', 'sold']
 
 on('GET', '/site', () => ({ brand: CONFIG.brand, tagline: CONFIG.tagline, support_email: CONFIG.supportEmail, oauth_url: oauthUrl(),
-  signup_url: signupUrl(), app_id: CONFIG.appId, static: true }))
+  signup_url: signupUrl(), app_id: appId(), oauth_ready: appId() !== SHARED_APP_ID, static: true }))
+
+on('PUT', '/site/app-id', ({ body }) => {
+  const id = body.app_id == null || body.app_id === '' ? null : String(body.app_id).trim()
+  if (id && !/^\d{1,9}$/.test(id)) fail(400, 'a Deriv app id is a number')
+  setItem(APP_ID_KEY, id)
+  return { app_id: appId(), oauth_ready: appId() !== SHARED_APP_ID }
+})
+
+// Registers this site with Deriv using an admin-scope API token (used once, never stored) and saves the app id.
+on('POST', '/site/register-app', async ({ body }) => {
+  const redirect = String(body.redirect_uri || '')
+  if (!/^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(redirect)) fail(400, 'redirect address must be https')
+  if (!body.token) fail(400, 'paste an API token that has the Admin scope')
+  const c = new DerivClient(CONFIG.wsUrl, SHARED_APP_ID, null, { timeout: 15000 })
+  c.start()
+  try {
+    if (!(await c.waitReady(15000))) fail(503, 'could not reach Deriv')
+    await c.request({ authorize: String(body.token) })
+    const r = (await c.request({ app_register: 1, name: CONFIG.brand, scopes: ['read', 'trade', 'trading_information'],
+      redirect_uri: redirect, homepage: redirect })).app_register
+    setItem(APP_ID_KEY, String(r.app_id))
+    return { app_id: String(r.app_id), oauth_ready: true }
+  } catch (e) { if (e instanceof HttpError) throw e; fail(400, e.message) } finally { c.stop() }
+})
 
 on('POST', '/auth/deriv', async ({ body }) => {
   const accounts = (body.accounts || []).filter((a) => a.token).slice(0, 20)
   if (!accounts.length) fail(401, 'no accounts returned by Deriv')
-  const results = await Promise.allSettled(accounts.map((a) => authorizeToken(CONFIG.wsUrl, CONFIG.appId, a.token)))
+  const results = await Promise.allSettled(accounts.map((a) => authorizeToken(CONFIG.wsUrl, appId(), a.token)))
   const verified = [], users = new Set()
   results.forEach((r, i) => {
     if (r.status !== 'fulfilled') return   // disabled / self-excluded accounts may fail - skip them

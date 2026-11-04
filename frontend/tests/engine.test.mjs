@@ -32,6 +32,39 @@ test('unauthenticated calls are rejected', async () => {
   assert.equal((await call('/site')).static, true)
 })
 
+test('pasted Deriv redirect address or API tokens are understood', async () => {
+  const { parseCredentials } = await import('../src/credentials.js')
+  assert.deepEqual(parseCredentials('https://deriv.example/redirect?acct1=CR1&token1=a1-abcdefgh&cur1=usd&acct2=VRTC2&token2=a1-zyxwvuts&cur2=usd'),
+    [{ loginid: 'CR1', token: 'a1-abcdefgh', currency: 'usd' }, { loginid: 'VRTC2', token: 'a1-zyxwvuts', currency: 'usd' }])
+  assert.deepEqual(parseCredentials('acct1=CR1&token1=a1-abcdefgh'), [{ loginid: 'CR1', token: 'a1-abcdefgh', currency: null }])
+  assert.deepEqual(parseCredentials(' AbCdEfGh12345 ,\n ZyXwVuTs98765 '), [{ token: 'AbCdEfGh12345' }, { token: 'ZyXwVuTs98765' }])
+  assert.deepEqual(parseCredentials('hi'), [])
+})
+
+test('OAuth needs the owner app id; it can be saved or registered in the browser', async () => {
+  assert.equal((await call('/site')).oauth_ready, false)            // shared test app 1089 never returns here
+  await assert.rejects(call('/site/app-id', 'PUT', { app_id: 'abc' }), (e) => e.status === 400)
+  const s = await call('/site/app-id', 'PUT', { app_id: '12345' })
+  assert.deepEqual(s, { app_id: '12345', oauth_ready: true })
+  assert.match((await call('/site')).oauth_url, /app_id=12345/)
+  await assert.rejects(call('/site/register-app', 'POST', { token: 'admin-otis', redirect_uri: 'http://evil.example/' }), (e) => e.status === 400)
+  await assert.rejects(call('/site/register-app', 'POST', { token: 'bad', redirect_uri: 'https://otis-ke.github.io/shotgun/' }), (e) => e.status === 400)
+  const r = await call('/site/register-app', 'POST', { token: 'admin-otis', redirect_uri: 'https://otis-ke.github.io/shotgun/' })
+  assert.equal(r.app_id, '4242')
+  assert.equal((await call('/site')).app_id, '4242')
+  assert.equal((await call('/site/app-id', 'PUT', { app_id: null })).oauth_ready, false)
+})
+
+test('API-token sign-in (no redirect needed) gives full account access', async () => {
+  const r = await call('/auth/deriv', 'POST', { accounts: [{ token: 'demo-tokenuser' }] })
+  assert.equal(r.user.accounts.length, 1)
+  const s = await call('/status')
+  assert.equal(s.health.authorized, true)
+  assert.ok(s.balance > 0)
+  assert.deepEqual(s.trading_permission, [true, 'demo account'])
+  await call('/auth/logout', 'POST')
+})
+
 test('Deriv OAuth sign-in verifies tokens and defaults to demo', async () => {
   await assert.rejects(call('/auth/deriv', 'POST', { accounts: [{ token: 'bad' }] }), (e) => e.status === 401)
   const r = await call('/auth/deriv', 'POST', { accounts: [{ token: 'real-otis' }, { token: 'demo-otis' }] })
